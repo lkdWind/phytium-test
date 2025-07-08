@@ -31,11 +31,9 @@ mod tests {
         let mmio_addr = iomap((base as usize).into(), reg.size.unwrap());
         let mut pl011 = Pl011::new(mmio_addr);
         println!("PL011 base address: {:p}", mmio_addr);
-        unsafe {
-            pl011.init();
-            for i in 0..10 {
-                pl011.send_byte(b'0' + i);
-            }
+        pl011.init();
+        for i in 0..10 {
+            pl011.send_byte(b'0' + i);
         }
         println!("test passed!");
     }

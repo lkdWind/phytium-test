@@ -196,7 +196,7 @@ impl Pl011 {
 
     fn set_baudrate(&mut self, baudrate: u32) {
         if (baudrate * 2) > self.clock_hz {
-            error!("Pl011: set baudrate {} too high", baudrate);
+            error!("Pl011: set baudrate {baudrate} too high");
             return
         }
 
@@ -220,37 +220,39 @@ impl Pl011 {
         // todo SetSpecificOptions
 
         self.baudrate = baudrate;
-        info!("Pl011: set baudrate {} done", baudrate);
+        info!("Pl011: set baudrate {baudrate} done");
     }
 
-    pub unsafe fn init(&mut self) {
+    pub fn init(&mut self) {
         self.set_baudrate(115200);
         /*
         * Set up the default data format: 8 bit data, 1 stop bit, no
         * parity
         */
-        self.base.as_ref().
+        unsafe {
+            self.base.as_ref().
             uartlcrh.modify(UARTLCR_H::WLEN::EIGHT_BITS);
-        /* Set the RX FIFO trigger at 8 data bytes.Tx FIFO trigger is 8 data bytes*/
-        self.base.as_ref().uartifls.modify(UARTIFLS::TXIFLSEL::FULL_1_4
-                                          + UARTIFLS::RXIFLSEL::FULL_1_4);
+            /* Set the RX FIFO trigger at 8 data bytes.Tx FIFO trigger is 8 data bytes*/
+            self.base.as_ref().uartifls.modify(UARTIFLS::TXIFLSEL::FULL_1_4
+                                            + UARTIFLS::RXIFLSEL::FULL_1_4);
 
-        self.base.as_ref().uartcr.modify(UARTCR::UARTEN::SET
-                                    + UARTCR::TXE::SET
-                                    + UARTCR::RXE::SET
-                                    + UARTCR::DTR::SET
-                                    + UARTCR::RTS::SET);
-        /* Disable all interrupts, polled mode is the default */
-        self.base.as_ref().uartimsc.set(0u32);
+            self.base.as_ref().uartcr.modify(UARTCR::UARTEN::SET
+                                        + UARTCR::TXE::SET
+                                        + UARTCR::RXE::SET
+                                        + UARTCR::DTR::SET
+                                        + UARTCR::RTS::SET);
+            /* Disable all interrupts, polled mode is the default */
+            self.base.as_ref().uartimsc.set(0u32);
+        }
         info!("Pl011: init done");
     }
 
-    pub unsafe fn send_byte(&self, data: u8) {
-        self.base.as_ref().uartdr.modify(UARTDR::DATA.val(data as u32));
+    pub fn send_byte(&self, data: u8) {
+        unsafe{ self.base.as_ref().uartdr.modify(UARTDR::DATA.val(data as u32)); }
     }
 
-    pub unsafe fn recv_byte(&self) -> u8 {
-        self.base.as_ref().uartdr.read(UARTDR::DATA) as u8
+    pub fn recv_byte(&self) -> u8 {
+        unsafe {self.base.as_ref().uartdr.read(UARTDR::DATA) as u8 }
     }
 
 
