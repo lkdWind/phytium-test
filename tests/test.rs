@@ -28,17 +28,15 @@ mod tests {
 
         let base = reg.address;
 
-        let mmio = iomap((base as usize).into(), reg.size.unwrap());
-
-        let pl011 = Pl011 { base_addr: mmio };
-
-        println!("PL011 base address: {:p}", pl011.base_addr);
-
-        unsafe { pl011.base_addr.as_ptr().write_volatile(b'A') }; // Write 'A' to the data register}
-
-        unsafe { pl011.base_addr.as_ptr().write_volatile(b'\r') }; // Write 'A' to the data register}
-        unsafe { pl011.base_addr.as_ptr().write_volatile(b'\n') }; // Write 'A' to the data register}
-
+        let mmio_addr = iomap((base as usize).into(), reg.size.unwrap());
+        let mut pl011 = Pl011::new(mmio_addr);
+        println!("PL011 base address: {:p}", mmio_addr);
+        unsafe {
+            pl011.init();
+            for i in 0..10 {
+                pl011.send_byte(b'0' + i);
+            }
+        }
         println!("test passed!");
     }
 }
