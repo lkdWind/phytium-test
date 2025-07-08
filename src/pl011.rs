@@ -1,10 +1,10 @@
-use aarch64_cpu::registers::{Readable, Writeable, ReadWriteable};
+use aarch64_cpu::registers::{ReadWriteable, Readable, Writeable};
+use core::ptr::NonNull;
+use log::{error, info};
 use tock_registers::{
     register_bitfields, register_structs,
     registers::{ReadOnly, ReadWrite, WriteOnly},
 };
-use core::ptr::NonNull;
-use log::{info,error};
 
 register_bitfields![u32,
     pub UARTDR [
@@ -197,7 +197,7 @@ impl Pl011 {
     fn set_baudrate(&mut self, baudrate: u32) {
         if (baudrate * 2) > self.clock_hz {
             error!("Pl011: set baudrate {baudrate} too high");
-            return
+            return;
         }
 
         let mut temp = 16 * baudrate;
@@ -213,10 +213,16 @@ impl Pl011 {
 
         // set baudrate
         unsafe {
-            self.base.as_ref().uartibrd.write(UARTIBRD::BAUD_DIVINT.val(divider));
-            self.base.as_ref().uartfbrd.write(UARTFBRD::BAUD_DIVFRAC.val(fraction));
+            self.base
+                .as_ref()
+                .uartibrd
+                .write(UARTIBRD::BAUD_DIVINT.val(divider));
+            self.base
+                .as_ref()
+                .uartfbrd
+                .write(UARTFBRD::BAUD_DIVFRAC.val(fraction));
         }
-        
+
         // todo SetSpecificOptions
 
         self.baudrate = baudrate;
@@ -226,21 +232,27 @@ impl Pl011 {
     pub fn init(&mut self) {
         self.set_baudrate(115200);
         /*
-        * Set up the default data format: 8 bit data, 1 stop bit, no
-        * parity
-        */
+         * Set up the default data format: 8 bit data, 1 stop bit, no
+         * parity
+         */
         unsafe {
-            self.base.as_ref().
-            uartlcrh.modify(UARTLCR_H::WLEN::EIGHT_BITS);
+            self.base
+                .as_ref()
+                .uartlcrh
+                .modify(UARTLCR_H::WLEN::EIGHT_BITS);
             /* Set the RX FIFO trigger at 8 data bytes.Tx FIFO trigger is 8 data bytes*/
-            self.base.as_ref().uartifls.modify(UARTIFLS::TXIFLSEL::FULL_1_4
-                                            + UARTIFLS::RXIFLSEL::FULL_1_4);
+            self.base
+                .as_ref()
+                .uartifls
+                .modify(UARTIFLS::TXIFLSEL::FULL_1_4 + UARTIFLS::RXIFLSEL::FULL_1_4);
 
-            self.base.as_ref().uartcr.modify(UARTCR::UARTEN::SET
-                                        + UARTCR::TXE::SET
-                                        + UARTCR::RXE::SET
-                                        + UARTCR::DTR::SET
-                                        + UARTCR::RTS::SET);
+            self.base.as_ref().uartcr.modify(
+                UARTCR::UARTEN::SET
+                    + UARTCR::TXE::SET
+                    + UARTCR::RXE::SET
+                    + UARTCR::DTR::SET
+                    + UARTCR::RTS::SET,
+            );
             /* Disable all interrupts, polled mode is the default */
             self.base.as_ref().uartimsc.set(0u32);
         }
@@ -248,13 +260,15 @@ impl Pl011 {
     }
 
     pub fn send_byte(&self, data: u8) {
-        unsafe{ self.base.as_ref().uartdr.modify(UARTDR::DATA.val(data as u32)); }
+        unsafe {
+            self.base
+                .as_ref()
+                .uartdr
+                .modify(UARTDR::DATA.val(data as u32));
+        }
     }
 
     pub fn recv_byte(&self) -> u8 {
-        unsafe {self.base.as_ref().uartdr.read(UARTDR::DATA) as u8 }
+        unsafe { self.base.as_ref().uartdr.read(UARTDR::DATA) as u8 }
     }
-
-
 }
-
