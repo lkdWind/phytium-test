@@ -9,9 +9,8 @@ dma-api = { version = "0.3", features = ["alloc"] }
 log = "0.4"
 tock-registers = "0.9.0"
 aarch64-cpu = "10.0"
-arm_pl011 = "0.1"
-kspin = "0.1"
-
+futures = { version = "0.3", features = ["alloc"], default-features = false }
+spin_on = "0.1"
 [dev-dependencies]
 bare-test = "0.4"
 

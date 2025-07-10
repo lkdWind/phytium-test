@@ -1,10 +1,11 @@
 use aarch64_cpu::registers::{ReadWriteable, Readable, Writeable};
-use core::ptr::NonNull;
+use core::{ptr::NonNull};
 use log::{error, info};
 use tock_registers::{
     register_bitfields, register_structs,
     registers::{ReadOnly, ReadWrite, WriteOnly},
 };
+use futures::task::AtomicWaker;
 
 register_bitfields![u32,
     pub UARTDR [
@@ -183,14 +184,18 @@ pub struct Pl011 {
     base: NonNull<Pl011Regs>,
     clock_hz: u32,
     baudrate: u32,
+    waker: AtomicWaker,
+    pub irq_count: usize,
 }
 
 impl Pl011 {
     pub const fn new(base: NonNull<u8>) -> Self {
         Self {
+            waker: AtomicWaker::new(),
             base: base.cast(),
             clock_hz: 100_000_000,
             baudrate: 0,
+            irq_count: 0,
         }
     }
 
@@ -253,8 +258,7 @@ impl Pl011 {
                     + UARTCR::DTR::SET
                     + UARTCR::RTS::SET,
             );
-            /* Disable all interrupts, polled mode is the default */
-            self.base.as_ref().uartimsc.set(0u32);
+            self.base.as_ref().uartimsc.write(UARTIMSC::TXIM::SET);
         }
         info!("Pl011: init done");
     }
@@ -270,5 +274,53 @@ impl Pl011 {
 
     pub fn recv_byte(&self) -> u8 {
         unsafe { self.base.as_ref().uartdr.read(UARTDR::DATA) as u8 }
+    }
+
+    pub fn write_bytes<'a>(&'a mut self, data: &'a [u8]) -> impl Future<Output = usize> + 'a {
+        WriteFuture {
+            pl011: self,
+            data,
+            pos: 0usize,
+        }
+    }
+
+    pub fn handle_interrupt(&mut self) {
+        self.irq_count += 1;
+        unsafe {
+            if self.base.as_ref().uartfr.is_set(UARTFR::RXFE) {
+                self.waker.wake();
+                self.base.as_ref().uarticr.set(u32::MAX);
+            }
+        }
+    }
+}
+
+pub struct WriteFuture<'a> {    
+    pl011: &'a Pl011,
+    data: &'a [u8],
+    pos: usize,
+}
+
+impl Future for WriteFuture<'_>{
+    type Output = usize;
+
+    fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> core::task::Poll<Self::Output> {
+        unsafe {
+            let this = self.get_mut();
+            loop {
+                if this.pos >= this.data.len() {
+                    return core::task::Poll::Ready(this.pos);
+                }
+
+                if this.pl011.base.as_ref().uartfr.is_set(UARTFR::TXFF) {
+                    this.pl011.waker.register(cx.waker());
+                    return core::task::Poll::Pending;
+                }
+
+                let byte = this.data[this.pos];
+                this.pl011.send_byte(byte);
+                this.pos += 1;
+            }
+        }
     }
 }
