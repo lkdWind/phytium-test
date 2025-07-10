@@ -6,13 +6,22 @@ extern crate alloc;
 extern crate bare_test;
 
 #[bare_test::tests]
-mod tests { 
+mod tests {
     use bare_test::{
-        driver::IrqConfig, globals::{global_val, PlatformInfoKind}, irq::{IrqHandleResult, IrqParam}, mem::iomap, println, GetIrqConfig
+        GetIrqConfig,
+        driver::IrqConfig,
+        globals::{PlatformInfoKind, global_val},
+        irq::{IrqHandleResult, IrqParam},
+        mem::iomap,
+        println,
+    };
+    use core::{
+        cell::UnsafeCell,
+        ops::{Deref, DerefMut},
+        sync::atomic::{AtomicBool, Ordering},
     };
     use log::info;
     use pl011::Pl011;
-    use core::{cell::UnsafeCell, ops::{Deref, DerefMut}, sync::atomic::{AtomicBool, Ordering}};
 
     pub struct Mutex<T> {
         inner: AtomicBool,
@@ -35,9 +44,7 @@ mod tests {
                 if self.inner.swap(true, Ordering::Acquire) {
                     continue;
                 }
-                return MutexGuard {
-                    mutex: self,
-                };
+                return MutexGuard { mutex: self };
             }
         }
 
@@ -46,7 +53,7 @@ mod tests {
         }
 
         #[allow(clippy::mut_from_ref)]
-        pub fn force_use(&self) -> &mut T{
+        pub fn force_use(&self) -> &mut T {
             unsafe { &mut *self.data.get() }
         }
     }
@@ -54,20 +61,20 @@ mod tests {
         mutex: &'a Mutex<T>,
     }
 
-    impl <T> Deref for MutexGuard<'_, T> {
+    impl<T> Deref for MutexGuard<'_, T> {
         type Target = T;
         fn deref(&self) -> &Self::Target {
             unsafe { &*self.mutex.data.get() }
         }
     }
 
-    impl <T> DerefMut for MutexGuard<'_, T> {
+    impl<T> DerefMut for MutexGuard<'_, T> {
         fn deref_mut(&mut self) -> &mut Self::Target {
             unsafe { &mut *self.mutex.data.get() }
         }
     }
 
-    impl <T> Drop for MutexGuard<'_, T> {
+    impl<T> Drop for MutexGuard<'_, T> {
         fn drop(&mut self) {
             self.mutex.inner.store(false, Ordering::Release);
         }
@@ -104,14 +111,16 @@ mod tests {
         IrqParam {
             intc: irq_info.irq_parent,
             cfg: irq_cfg,
-        }.register_builder({
+        }
+        .register_builder({
             |_irq| {
                 PL011.force_use().as_mut().unwrap().handle_interrupt();
                 IrqHandleResult::Handled
             }
-        }).register();
+        })
+        .register();
 
-        spin_on::spin_on(async{
+        spin_on::spin_on(async {
             let mut uart = PL011.lock();
             let pl011 = uart.as_mut().unwrap();
             println!("PL011 base address: {:p}", mmio_addr);

@@ -1,11 +1,11 @@
 use aarch64_cpu::registers::{ReadWriteable, Readable, Writeable};
-use core::{ptr::NonNull};
+use core::ptr::NonNull;
+use futures::task::AtomicWaker;
 use log::{error, info};
 use tock_registers::{
     register_bitfields, register_structs,
     registers::{ReadOnly, ReadWrite, WriteOnly},
 };
-use futures::task::AtomicWaker;
 
 register_bitfields![u32,
     pub UARTDR [
@@ -295,16 +295,19 @@ impl Pl011 {
     }
 }
 
-pub struct WriteFuture<'a> {    
+pub struct WriteFuture<'a> {
     pl011: &'a Pl011,
     data: &'a [u8],
     pos: usize,
 }
 
-impl Future for WriteFuture<'_>{
+impl Future for WriteFuture<'_> {
     type Output = usize;
 
-    fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> core::task::Poll<Self::Output> {
+    fn poll(
+        self: core::pin::Pin<&mut Self>,
+        cx: &mut core::task::Context<'_>,
+    ) -> core::task::Poll<Self::Output> {
         unsafe {
             let this = self.get_mut();
             loop {
